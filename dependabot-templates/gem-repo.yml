@@ -1,0 +1,62 @@
+version: 2
+updates:
+  - package-ecosystem: "bundler"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+
+    # Published gem — use "increase" to widen gemspec constraints
+    # so downstream consumers get compatibility. NOT lockfile-only.
+    versioning-strategy: "increase"
+
+    open-pull-requests-limit: 3
+
+    assignees:
+      - "MorganShowman"
+
+    reviewers:
+      - "MorganShowman"
+
+    cooldown:
+      default-days: 7
+
+    labels:
+      - "dependencies"
+      - "ruby"
+
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+
+    open-pull-requests-limit: 3
+
+    assignees:
+      - "MorganShowman"
+
+    reviewers:
+      - "MorganShowman"
+
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+
+    groups:
+      all-actions:
+        applies-to: version-updates
+        patterns:
+          - "*"

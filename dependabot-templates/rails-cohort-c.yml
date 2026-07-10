@@ -1,0 +1,131 @@
+version: 2
+updates:
+  # ── Ruby Gems (Bundler) ─────────────────────────────────
+  - package-ecosystem: "bundler"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "friday"
+      time: "09:00"
+      timezone: "America/New_York"
+
+    # Only update Gemfile.lock — never touch Gemfile constraints.
+    # Major version bumps (Rails 7→8) require deliberate manual
+    # Gemfile edits. Consistent with discourse, openstreetmap.
+    versioning-strategy: "lockfile-only"
+
+    open-pull-requests-limit: 3
+
+    assignees:
+      - "MorganShowman"
+
+    reviewers:
+      - "MorganShowman"
+
+    # Supply chain protection: delay version updates 7 days after
+    # publish to avoid the highest-risk window for compromised gems.
+    # Security updates bypass cooldown automatically.
+    # NOTE: bug #15049 — if a bundler security fix ships within this
+    # window and fails, manually trigger or temporarily remove cooldown.
+    cooldown:
+      default-days: 7
+
+    labels:
+      - "dependencies"
+      - "ruby"
+
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+
+    groups:
+      # Rails framework gems MUST upgrade together. A partial Rails
+      # upgrade (activerecord 7.2 + actionpack 7.1) fails at boot.
+      rails-framework:
+        applies-to: version-updates
+        patterns:
+          - "rails"
+          - "railties"
+          - "actioncable"
+          - "actionmailbox"
+          - "actionmailer"
+          - "actionpack"
+          - "actiontext"
+          - "actionview"
+          - "activejob"
+          - "activemodel"
+          - "activerecord"
+          - "activestorage"
+          - "activesupport"
+
+      # Sentry gems must upgrade together to avoid version mismatch.
+      sentry:
+        applies-to: version-updates
+        patterns:
+          - "sentry-ruby"
+          - "sentry-rails"
+
+      # Dev/test tools — low blast radius, auto-merge candidates.
+      # Brakeman is here but excluded from auto-merge by the workflow.
+      dev-tools:
+        applies-to: version-updates
+        patterns:
+          - "brakeman"
+          - "bundler-audit"
+          - "rspec*"
+          - "rubocop*"
+          - "factory_bot*"
+          - "faker"
+          - "capybara"
+          - "selenium-webdriver"
+          - "webmock"
+          - "vcr"
+          - "simplecov"
+          - "debug"
+          - "pry*"
+          - "letter_opener*"
+          - "shoulda*"
+
+    # All other runtime gems (pg, sidekiq, redis, etc.) stay as
+    # INDIVIDUAL PRs — better triage, rollback isolation, and
+    # visibility for production dependency changes.
+    # Security updates are always individual (separate limit of 10).
+
+  # ── GitHub Actions ──────────────────────────────────────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "friday"
+      time: "09:00"
+      timezone: "America/New_York"
+
+    open-pull-requests-limit: 3
+
+    assignees:
+      - "MorganShowman"
+
+    reviewers:
+      - "MorganShowman"
+
+    # NO cooldown on github-actions!
+    # Bug #14579: cooldown only checks the latest release. Actions
+    # like ruby/setup-ruby release multiple times per week, causing
+    # cooldown to PERMANENTLY FREEZE the dependency. The cooldown
+    # logic doesn't walk backwards to find older satisfying releases.
+
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+
+    groups:
+      # One PR for ALL actions updates — eliminates the 13-repo ×
+      # N-actions explosion that caused the original pain point.
+      all-actions:
+        applies-to: version-updates
+        patterns:
+          - "*"
