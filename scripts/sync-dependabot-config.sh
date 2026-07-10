@@ -80,15 +80,6 @@ log_success() {
   echo "[SUCCESS] $1"
 }
 
-cleanup_temp_dir() {
-  if [[ -n "${TEMP_DIR:-}" ]] && [[ -d "$TEMP_DIR" ]]; then
-    rm -rf "$TEMP_DIR"
-  fi
-}
-
-# Set up trap to clean up on exit
-trap cleanup_temp_dir EXIT
-
 # Get the templates directory (same directory as this script, relative path)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEMPLATES_DIR="$SCRIPT_DIR/dependabot-templates"
@@ -98,75 +89,65 @@ if [[ ! -d "$TEMPLATES_DIR" ]]; then
   exit 1
 fi
 
-# Process each repository
+# Process each repository.
+# Every fallible command has explicit '|| return 1' because this
+# function is called from a conditional context where set -e is
+# suppressed (standard bash behavior for if/&&/||).
 sync_repo() {
   local repo_name="$1"
   local template_name="$2"
   local template_path="$TEMPLATES_DIR/$template_name"
-  
+  local repo_temp_dir=""
+
   if [[ ! -f "$template_path" ]]; then
     log_error "Template not found: $template_path"
     return 1
   fi
-  
+
   log_info "Processing: $repo_name (template: $template_name)"
-  
-  # Create temporary directory for this repo
-  TEMP_DIR=$(mktemp -d)
-  
+
+  repo_temp_dir=$(mktemp -d) || return 1
+
   if [[ "$DRY_RUN" == "true" ]]; then
-    log_info "[DRY-RUN] Would clone Amorlex/$repo_name to $TEMP_DIR"
+    log_info "[DRY-RUN] Would clone Amorlex/$repo_name"
     log_info "[DRY-RUN] Would create branch: chore/sync-dependabot-config"
     log_info "[DRY-RUN] Would copy template: $template_name → .github/dependabot.yml"
     log_info "[DRY-RUN] Would create workflow: .github/workflows/dependabot-auto-merge.yml"
     log_info "[DRY-RUN] Would commit: 'deps: sync dependabot config from Amorlex/.github'"
     log_info "[DRY-RUN] Would create PR with title: 'deps: sync dependabot config from Amorlex/.github'"
-    rm -rf "$TEMP_DIR"
-    TEMP_DIR=""
+    rm -rf "$repo_temp_dir"
     return 0
   fi
-  
-  # Clone the repository (shallow clone for speed)
-  if ! gh repo clone "Amorlex/$repo_name" "$TEMP_DIR" -- --depth=1 2>/dev/null; then
+
+  if ! gh repo clone "Amorlex/$repo_name" "$repo_temp_dir" -- --depth=1 2>/dev/null; then
     log_error "Failed to clone Amorlex/$repo_name"
+    rm -rf "$repo_temp_dir"
     return 1
   fi
-  
-  cd "$TEMP_DIR"
-  
-  # Create and checkout the sync branch
+
+  cd "$repo_temp_dir" || { rm -rf "$repo_temp_dir"; return 1; }
+
   git checkout -b chore/sync-dependabot-config 2>/dev/null || {
     log_error "Failed to create branch for $repo_name"
-    return 1
+    cd - > /dev/null; rm -rf "$repo_temp_dir"; return 1
   }
-  
-  # Create .github directory if it doesn't exist
-  mkdir -p .github/workflows
-  
-  # Copy the dependabot template
-  cp "$template_path" .github/dependabot.yml
-  
-  # Write the caller workflow
-  echo "$CALLER_WORKFLOW" > .github/workflows/dependabot-auto-merge.yml
-  
-  # Stage changes
-  git add .github/dependabot.yml .github/workflows/dependabot-auto-merge.yml
-  
-  # Check if there are changes to commit
+
+  mkdir -p .github/workflows || { cd - > /dev/null; rm -rf "$repo_temp_dir"; return 1; }
+  cp "$template_path" .github/dependabot.yml || { cd - > /dev/null; rm -rf "$repo_temp_dir"; return 1; }
+  echo "$CALLER_WORKFLOW" > .github/workflows/dependabot-auto-merge.yml || { cd - > /dev/null; rm -rf "$repo_temp_dir"; return 1; }
+  git add .github/dependabot.yml .github/workflows/dependabot-auto-merge.yml || { cd - > /dev/null; rm -rf "$repo_temp_dir"; return 1; }
+
   if ! git diff --cached --quiet; then
-    # Commit changes
     git commit -m "deps: sync dependabot config from Amorlex/.github" || {
       log_error "Failed to commit changes for $repo_name"
-      return 1
+      cd - > /dev/null; rm -rf "$repo_temp_dir"; return 1
     }
-    
-    # Push to remote
+
     git push -u origin chore/sync-dependabot-config || {
       log_error "Failed to push branch for $repo_name"
-      return 1
+      cd - > /dev/null; rm -rf "$repo_temp_dir"; return 1
     }
-    
-    # Create pull request
+
     if gh pr create \
       --title "deps: sync dependabot config from Amorlex/.github" \
       --body "Automated sync from Amorlex/.github dependabot templates." \
@@ -176,15 +157,14 @@ sync_repo() {
       log_success "PR created for $repo_name"
     else
       log_error "Failed to create PR for $repo_name (PR may already exist)"
-      return 1
+      cd - > /dev/null; rm -rf "$repo_temp_dir"; return 1
     fi
   else
     log_info "No changes to commit for $repo_name (already synced?)"
   fi
-  
+
   cd - > /dev/null
-  rm -rf "$TEMP_DIR"
-  TEMP_DIR=""
+  rm -rf "$repo_temp_dir"
   return 0
 }
 
@@ -211,11 +191,7 @@ main() {
       continue
     fi
     
-    # Run sync_repo and capture exit code explicitly.
-    # NOTE: Do NOT use 'if sync_repo ...; then' — that suppresses
-    # errexit inside the function call (standard bash behavior).
-    sync_repo "$repo_name" "$template_name" && rc=0 || rc=$?
-    if [[ $rc -eq 0 ]]; then
+    if sync_repo "$repo_name" "$template_name"; then
       success_count=$((success_count + 1))
     else
       failure_count=$((failure_count + 1))
