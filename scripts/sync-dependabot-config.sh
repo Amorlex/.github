@@ -38,6 +38,7 @@ on: pull_request_target
 permissions:
   contents: write
   pull-requests: write
+  issues: write
 jobs:
   auto-merge:
     uses: Amorlex/.github/.github/workflows/reusable-dependabot-auto-merge.yml@main
@@ -120,6 +121,8 @@ sync_repo() {
     log_info "[DRY-RUN] Would create workflow: .github/workflows/dependabot-auto-merge.yml"
     log_info "[DRY-RUN] Would commit: 'deps: sync dependabot config from Amorlex/.github'"
     log_info "[DRY-RUN] Would create PR with title: 'deps: sync dependabot config from Amorlex/.github'"
+    rm -rf "$TEMP_DIR"
+    TEMP_DIR=""
     return 0
   fi
   
@@ -180,6 +183,8 @@ sync_repo() {
   fi
   
   cd - > /dev/null
+  rm -rf "$TEMP_DIR"
+  TEMP_DIR=""
   return 0
 }
 
@@ -206,7 +211,11 @@ main() {
       continue
     fi
     
-    if sync_repo "$repo_name" "$template_name"; then
+    # Run sync_repo and capture exit code explicitly.
+    # NOTE: Do NOT use 'if sync_repo ...; then' — that suppresses
+    # errexit inside the function call (standard bash behavior).
+    sync_repo "$repo_name" "$template_name" && rc=0 || rc=$?
+    if [[ $rc -eq 0 ]]; then
       success_count=$((success_count + 1))
     else
       failure_count=$((failure_count + 1))
