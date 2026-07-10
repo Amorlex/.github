@@ -34,7 +34,7 @@ REPO_MAPPING=(
 
 # Caller workflow content (exact copy from dependabot-configuration-report.md:439-449)
 CALLER_WORKFLOW='name: Dependabot Auto-Merge
-on: pull_request
+on: pull_request_target
 permissions:
   contents: write
   pull-requests: write
@@ -207,9 +207,9 @@ main() {
     fi
     
     if sync_repo "$repo_name" "$template_name"; then
-      ((success_count++))
+      success_count=$((success_count + 1))
     else
-      ((failure_count++))
+      failure_count=$((failure_count + 1))
     fi
     
     log_info ""
