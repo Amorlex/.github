@@ -41,8 +41,8 @@ permissions:
   issues: write
 jobs:
   auto-merge:
+    if: github.actor == '"'"'dependabot[bot]'"'"'
     uses: Amorlex/.github/.github/workflows/reusable-dependabot-auto-merge.yml@main
-    secrets: inherit
 '
 
 # Parse arguments
