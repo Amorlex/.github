@@ -17,8 +17,6 @@ updates:
     assignees:
       - "MorganShowman"
 
-    reviewers:
-      - "MorganShowman"
 
     cooldown:
       default-days: 7
@@ -44,8 +42,6 @@ updates:
     assignees:
       - "MorganShowman"
 
-    reviewers:
-      - "MorganShowman"
 
     labels:
       - "dependencies"
