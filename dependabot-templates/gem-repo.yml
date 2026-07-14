@@ -8,8 +8,8 @@ updates:
       time: "09:00"
       timezone: "America/New_York"
 
-    # Published gem — use "increase" to widen gemspec constraints
-    # so downstream consumers get compatibility. NOT lockfile-only.
+    # Published gem — use "increase" to bump gemspec constraint floors
+    # (e.g., ~> 1.2 → ~> 1.3) so they reflect tested versions. NOT lockfile-only.
     versioning-strategy: "increase"
 
     open-pull-requests-limit: 3
